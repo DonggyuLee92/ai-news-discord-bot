@@ -25,6 +25,8 @@ client_ai = OpenAI(api_key=OPENAI_KEY)
 
 scheduler_started = False
 
+RUN_ONCE = os.getenv("RUN_ONCE") == "true"
+
 # 필터 함수
 AI_KEYWORDS = [
     "AI",
@@ -141,6 +143,18 @@ async def on_ready():
 
     print(f"로그인 완료: {client.user}")
 
+    if RUN_ONCE:
+            channel = client.get_channel(DISCORD_CHANNEL_ID)
+
+            if channel is None:
+                print("채널을 찾지 못했습니다.")
+                await client.close()
+                return
+
+            await send_news(channel)
+            await client.close()
+            return
+    
     if not scheduler_started:
         scheduler = AsyncIOScheduler(timezone=ZoneInfo("Asia/Seoul"))
 
