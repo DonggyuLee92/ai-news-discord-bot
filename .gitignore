@@ -1,0 +1,11 @@
+# 환경변수
+.env
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
