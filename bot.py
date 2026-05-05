@@ -142,8 +142,11 @@ async def on_ready():
     global scheduler_started
 
     print(f"로그인 완료: {client.user}")
+    print("RUN_ONCE:", RUN_ONCE)
 
     if RUN_ONCE:
+            print("1회 실행 모드 시작")
+
             channel = client.get_channel(DISCORD_CHANNEL_ID)
 
             if channel is None:
@@ -152,6 +155,9 @@ async def on_ready():
                 return
 
             await send_news(channel)
+
+
+            print("1회 실행 완료, 봇 종료")
             await client.close()
             return
     
