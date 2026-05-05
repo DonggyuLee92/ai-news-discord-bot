@@ -48,34 +48,69 @@ def is_ai_news(title):
     return any(keyword.lower() in title_lower for keyword in AI_KEYWORDS)
 
 
-RSS_FEEDS = [
-    "https://techcrunch.com/tag/artificial-intelligence/feed/",
-    "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
+TREND_FEEDS = [
+    "https://huggingface.co/blog/feed.xml",
+    "https://venturebeat.com/category/ai/feed/",
+    "https://www.the-decoder.com/feed/",
+    "https://www.marktechpost.com/feed/",
+]
+
+PAPER_FEEDS = [
+    "https://arxiv.org/rss/cs.AI",
+    "https://arxiv.org/rss/cs.LG",
+]
+
+SUMMARY_FEEDS = [
+    "https://aiweekly.co/issues.rss",
+]
+
+# 기존 유지 (보조)
+EXTRA_FEEDS = [
     "https://openai.com/blog/rss/",
     "https://ai.googleblog.com/feeds/posts/default",
-    "https://www.technologyreview.com/topic/artificial-intelligence/feed/",
 ]
 
 
-# 뉴스 함수
-def get_ai_news():
+# 뉴스 수집 함수
+def collect_news(feeds, limit, category):
     news_list = []
     seen_links = set()
 
-    for url in RSS_FEEDS:
+    for url in feeds:
         feed = feedparser.parse(url)
 
-        for entry in feed.entries[:5]:
+        for entry in feed.entries:
+            if len(news_list) >= limit:
+                return news_list
+
             if entry.link in seen_links:
                 continue
 
             seen_links.add(entry.link)
 
-            news_list.append(
-                {"title": entry.title, "link": entry.link, "description": entry.summary}
-            )
+            news_list.append({
+                "title": entry.title,
+                "link": entry.link,
+                "description": entry.get("summary", ""),
+                "category": category
+            })
 
     return news_list
+
+# 뉴스 함수
+def get_ai_news():
+    news = []
+
+    # 🎯 카테고리별 수집
+    news += collect_news(TREND_FEEDS, 8, "🔥 트렌드")
+    news += collect_news(PAPER_FEEDS, 4, "📄 논문")
+    news += collect_news(SUMMARY_FEEDS, 3, "🧾 요약")
+
+    # 🔥 부족하면 추가 채우기
+    if len(news) < 15:
+        news += collect_news(EXTRA_FEEDS, 15 - len(news), "➕ 추가")
+
+    return news
 
 
 # 필터 + 요약 함수
@@ -156,7 +191,6 @@ async def on_ready():
 
         await send_news(channel)
 
-
         print("1회 실행 완료, 봇 종료")
         await client.close()
         return
@@ -181,12 +215,13 @@ async def on_ready():
 async def send_news(channel):
     news = get_ai_news()
 
-    # count = 0
+    count = 0
 
     for item in news:
         title = item["title"]
         link = item["link"]
         description = item.get("description") or item.get("summary", "")
+        category = item.get("category", "")
 
         print("검사 시작:", title)
 
@@ -211,7 +246,8 @@ async def send_news(channel):
 
         print("최종 필터 통과:", title)
 
-        msg = f"""📰 **{title}**
+        msg = f"""{category}
+        📰 **{title}**
 
         {summary}
 
@@ -221,6 +257,10 @@ async def send_news(channel):
 
         # 🔥 추가 2 (DB 저장)
         save_sent_article(title, link)
+
+        count += 1
+        if count >= 15:
+            break
 
     print("완료")
 
