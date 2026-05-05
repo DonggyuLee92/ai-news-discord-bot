@@ -261,8 +261,13 @@ async def send_news(channel):
         count += 1
         if count >= 15:
             break
+    
+    if count == 0:
+        await channel.send("오늘은 새로운 AI 뉴스가 많지 않습니다 😢")
+    else:
+        await channel.send(f"📊 오늘의 AI 뉴스 {count}개를 정리해서 보내드렸어요!")
 
-    print("완료")
+    print(f"완료: {count}개 전송")
 
 
 async def send_scheduled_news():
