@@ -145,21 +145,21 @@ async def on_ready():
     print("RUN_ONCE:", RUN_ONCE)
 
     if RUN_ONCE:
-            print("1회 실행 모드 시작")
+        print("1회 실행 모드 시작")
 
-            channel = client.get_channel(DISCORD_CHANNEL_ID)
+        channel = client.get_channel(DISCORD_CHANNEL_ID)
 
-            if channel is None:
-                print("채널을 찾지 못했습니다.")
-                await client.close()
-                return
-
-            await send_news(channel)
-
-
-            print("1회 실행 완료, 봇 종료")
+        if channel is None:
+            print("채널을 찾지 못했습니다.")
             await client.close()
             return
+
+        await send_news(channel)
+
+
+        print("1회 실행 완료, 봇 종료")
+        await client.close()
+        return
     
     if not scheduler_started:
         scheduler = AsyncIOScheduler(timezone=ZoneInfo("Asia/Seoul"))
@@ -217,7 +217,7 @@ async def send_news(channel):
 
         🔗 {item['link']}"""
 
-        await message.channel.send(msg)
+        await channel.send(msg)
 
         # 🔥 추가 2 (DB 저장)
         save_sent_article(title, link)
