@@ -2,8 +2,8 @@ name: Daily AI News
 
 on:
   schedule:
-    # 한국시간 평일 오전 9시 30분 = UTC 평일 00시 30분
-    - cron: "*/5 * * * *"
+    # 한국시간 평일 오전 9시 50분 = UTC 평일 00시 50분
+    - cron: "50 0 * * 1-5"
   workflow_dispatch:
 
 jobs:
