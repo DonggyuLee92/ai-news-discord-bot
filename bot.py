@@ -13,7 +13,15 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-DISCORD_CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))
+
+DISCORD_CHANNEL_IDS = [
+    int(channel_id.strip())
+    for channel_id in os.getenv("DISCORD_CHANNEL_IDS", "").split(",")
+    if channel_id.strip()
+]
+
+
+RUN_ONCE = os.getenv("RUN_ONCE") == "true"
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -24,8 +32,6 @@ client = discord.Client(intents=intents)
 client_ai = OpenAI(api_key=OPENAI_KEY)
 
 scheduler_started = False
-
-RUN_ONCE = os.getenv("RUN_ONCE") == "true"
 
 # 필터 함수
 AI_KEYWORDS = [
@@ -41,12 +47,6 @@ AI_KEYWORDS = [
     "neural",
     "agent",
 ]
-
-
-def is_ai_news(title):
-    title_lower = title.lower()
-    return any(keyword.lower() in title_lower for keyword in AI_KEYWORDS)
-
 
 TREND_FEEDS = [
     "https://huggingface.co/blog/feed.xml",
@@ -71,6 +71,12 @@ EXTRA_FEEDS = [
 ]
 
 
+def is_ai_news(title):
+    title_lower = title.lower()
+    return any(keyword.lower() in title_lower for keyword in AI_KEYWORDS)
+
+
+
 # 뉴스 수집 함수
 def collect_news(feeds, limit, category):
     news_list = []
@@ -88,12 +94,14 @@ def collect_news(feeds, limit, category):
 
             seen_links.add(entry.link)
 
-            news_list.append({
-                "title": entry.title,
-                "link": entry.link,
-                "description": entry.get("summary", ""),
-                "category": category
-            })
+            news_list.append(
+                {
+                    "title": entry.title,
+                    "link": entry.link,
+                    "description": entry.get("summary", ""),
+                    "category": category,
+                }
+            )
 
     return news_list
 
@@ -172,49 +180,22 @@ def save_sent_article(title, link):
     ).execute()
 
 
-@client.event
-async def on_ready():
-    global scheduler_started
-
-    print(f"로그인 완료: {client.user}")
-    print("RUN_ONCE:", RUN_ONCE)
-
-    if RUN_ONCE:
-        print("1회 실행 모드 시작")
-
-        channel = client.get_channel(DISCORD_CHANNEL_ID)
+async def send_to_channels(message):
+    for channel_id in DISCORD_CHANNEL_IDS:
+        channel = client.get_channel(channel_id)
 
         if channel is None:
-            print("채널을 찾지 못했습니다.")
-            await client.close()
-            return
+            print(f"채널을 찾지 못했습니다: {channel_id}")
+            continue
 
-        await send_news(channel)
-
-        print("1회 실행 완료, 봇 종료")
-        await client.close()
-        return
-    
-    if not scheduler_started:
-        scheduler = AsyncIOScheduler(timezone=ZoneInfo("Asia/Seoul"))
-
-        scheduler.add_job(
-            send_scheduled_news,
-            "cron",
-            day_of_week="mon-fri",
-            hour=9,
-            minute=30,
-        )
-
-        scheduler.start()
-        scheduler_started = True
-
-        print("스케줄러 시작됨: 평일 오전 9시 30분")
+        await channel.send(message)
+        print(f"채널 전송 완료: {channel_id}")
 
 
-async def send_news(channel):
+
+
+async def send_news():
     news = get_ai_news()
-
     count = 0
 
     for item in news:
@@ -251,34 +232,58 @@ async def send_news(channel):
 
         {summary}
 
-        🔗 {item['link']}"""
+        🔗 {link}"""
 
-        await channel.send(msg)
-
+        await send_to_channels(msg)
         # 🔥 추가 2 (DB 저장)
         save_sent_article(title, link)
 
         count += 1
+
         if count >= 15:
             break
     
     if count == 0:
-        await channel.send("오늘은 새로운 AI 뉴스가 많지 않습니다 😢")
+        await send_to_channels("오늘은 새로운 AI 뉴스가 많지 않습니다 😢")
     else:
-        await channel.send(f"📊 오늘의 AI 뉴스 {count}개를 정리해서 보내드렸어요!")
+        await send_to_channels(f"📊 오늘의 AI 뉴스 {count}개를 정리해서 보내드렸어요!")
 
     print(f"완료: {count}개 전송")
 
 
 async def send_scheduled_news():
-    channel = client.get_channel(DISCORD_CHANNEL_ID)
-
-    if channel is None:
-        print("채널을 찾지 못했습니다.")
-        return
-
     print("평일 9시 30분 자동 뉴스 발송 시작")
-    await send_news(channel)
+    await send_news()
+
+@client.event
+async def on_ready():
+    global scheduler_started
+
+    print(f"로그인 완료: {client.user}")
+    print("RUN_ONCE:", RUN_ONCE)
+
+    if RUN_ONCE:
+        print("1회 실행 모드 시작")
+        await send_news()
+        print("1회 실행 완료, 봇 종료")
+        await client.close()
+        return
+    
+    if not scheduler_started:
+        scheduler = AsyncIOScheduler(timezone=ZoneInfo("Asia/Seoul"))
+
+        scheduler.add_job(
+            send_scheduled_news,
+            "cron",
+            day_of_week="mon-fri",
+            hour=9,
+            minute=30,
+        )
+
+        scheduler.start()
+        scheduler_started = True
+
+        print("스케줄러 시작됨: 평일 오전 9시 30분")
 
 
 # 디스코드 이벤트
@@ -291,11 +296,6 @@ async def on_message(message):
         await message.channel.send("봇 정상 작동!")
 
     if message.content == "!뉴스":
-        await send_news(message.channel)
-
-    # count += 1
-    # if count >= 3:  # 최대 3개만
-    #     break
-
+        await send_news()
 
 client.run(TOKEN)

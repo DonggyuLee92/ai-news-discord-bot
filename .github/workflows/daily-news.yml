@@ -3,7 +3,7 @@ name: Daily AI News
 on:
   schedule:
     # 한국시간 평일 오전 9시 30분 = UTC 평일 00시 30분
-    - cron: "30 0 * * 1-5"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -29,5 +29,5 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
+          DISCORD_CHANNEL_IDS: ${{ secrets.DISCORD_CHANNEL_IDS }}
         run: python bot.py
